@@ -12,8 +12,9 @@ from pathlib import Path
 
 # Configuração de caminhos virtuais
 dir_path = Path(__file__).parent
+
 path_txt = dir_path.parent / "get_names" / "data" / "lista_pokemons_pvpivs.txt"
-arquivo_json = "dados_pvp_ivs.json" # Ficará salvo na raiz do projeto
+arquivo_json = dir_path.parent / "data" / "dados_pvp_ivs.json" # Ficará salvo na raiz do projeto
 
 def organizar_ivs(conjunto_ivs):
     """Função auxiliar para converter o set em lista de inteiros ordenada."""
@@ -161,7 +162,7 @@ def extrair_dados_lote():
                 print(f"📦 Salvando lote parcial de 10 Pokémon no repositório GitHub...")
                 os.system('git config --global user.name "GitHub Actions Bot"')
                 os.system('git config --global user.email "actions@github.com"')
-                os.system(f'git add {arquivo_json}')
+                os.system(f'git add {arquivo_json.as_posix()}')
                 os.system('git commit -m "🤖 Lote parcial salvo automaticamente (10 Pokemons)"')
                 os.system('git push')
                 
@@ -176,7 +177,7 @@ def extrair_dados_lote():
             print("📦 Fazendo push final do que restou na fila...")
             os.system('git config --global user.name "GitHub Actions Bot"')
             os.system('git config --global user.email "actions@github.com"')
-            os.system(f'git add {arquivo_json}')
+            os.system(f'git add {arquivo_json.as_posix()}')
             os.system('git commit -m "🤖 Push final da rodada de extração"')
             os.system('git push')
             
