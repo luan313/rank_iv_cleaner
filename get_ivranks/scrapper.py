@@ -12,9 +12,12 @@ from pathlib import Path
 
 # Configuração de caminhos virtuais
 dir_path = Path(__file__).parent
-
 path_txt = dir_path.parent / "get_names" / "data" / "lista_pokemons_pvpivs.txt"
-arquivo_json = dir_path.parent / "data" / "dados_pvp_ivs.json" # Ficará salvo na raiz do projeto
+
+# Caminho para o JSON na pasta data
+arquivo_json = dir_path.parent / "data" / "dados_pvp_ivs.json"
+# Cria a pasta 'data' automaticamente se ela não existir
+arquivo_json.parent.mkdir(parents=True, exist_ok=True)
 
 def organizar_ivs(conjunto_ivs):
     """Função auxiliar para converter o set em lista de inteiros ordenada."""
@@ -28,13 +31,21 @@ def iniciar_driver():
     opcoes.add_argument('--no-sandbox')
     opcoes.add_argument('--log-level=3') # Suprime logs desnecessários do Chrome no terminal
     
+    # ESTRATÉGIA ANTI-TRAVAMENTO: Ignora carregamento de imagens e scripts lentos de anúncios
+    opcoes.page_load_strategy = 'eager' 
+    
     servico = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=servico, options=opcoes)
+    driver = webdriver.Chrome(service=servico, options=opcoes)
+    
+    # Se a página travar por mais de 30 segundos, força o Timeout para o script tentar de novo
+    driver.set_page_load_timeout(30) 
+    
+    return driver
 
 def extrair_dados_lote():
     # Verifica se o arquivo de nomes existe
     if not os.path.exists(path_txt):
-        print(f"⚠️ Erro: O arquivo '{path_txt}' não foi encontrado. Execute o get_names.py primeiro.")
+        print(f"⚠️ Erro: O arquivo '{path_txt}' não foi encontrado.")
         return
         
     # Lê todos os nomes do TXT, ignorando linhas vazias
@@ -95,60 +106,69 @@ def extrair_dados_lote():
             
             for nome_liga, cp_liga in ligas.items():
                 url = f"https://pvpivs.com/?mon={nome}&r=99&cp={cp_liga}"
-                driver.get(url)
+                sucesso_na_liga = False
                 
-                valores_cp = []
-                valores_iv_ataque = set()
-                valores_iv_defesa = set()
-                valores_iv_ps = set()
-                ranks_validados = 0
+                # SISTEMA DE TENTATIVAS: Tenta até 3 vezes carregar a mesma liga caso a internet/site falhe
+                for tentativa in range(3):
+                    valores_cp = []
+                    valores_iv_ataque = set()
+                    valores_iv_defesa = set()
+                    valores_iv_ps = set()
+                    ranks_validados = 0
+                    
+                    try:
+                        driver.get(url)
+                        
+                        # Espera curta (5s) para garantir que a tabela começou a ser renderizada
+                        WebDriverWait(driver, 5).until(
+                            EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
+                        )
+                        time.sleep(1.5) # Tempo de estabilização do DOM
+                        
+                        linhas = driver.find_elements(By.XPATH, "//table//tbody/tr")
+                        
+                        for linha in linhas:
+                            colunas = linha.find_elements(By.TAG_NAME, "td")
+                            
+                            if len(colunas) > 5:
+                                rank_texto = colunas[0].text.strip()
+                                if not rank_texto.isdigit():
+                                    continue 
+                                
+                                ranks_validados += 1
+                                
+                                cp_texto = colunas[2].text.strip()
+                                if cp_texto.isdigit():
+                                    valores_cp.append(int(cp_texto))
+                                    
+                                valores_iv_ataque.add(colunas[3].text.strip())
+                                valores_iv_defesa.add(colunas[4].text.strip())
+                                valores_iv_ps.add(colunas[5].text.strip())
+                                
+                                if ranks_validados == 99:
+                                    break
+                                    
+                        # Se leu os ranks perfeitamente, salva e SAI do laço de tentativas
+                        if ranks_validados > 0:
+                            dados_finais[nome][nome_liga] = {
+                                "iv_ataque": organizar_ivs(valores_iv_ataque),
+                                "iv_defesa": organizar_ivs(valores_iv_defesa),
+                                "iv_ps": organizar_ivs(valores_iv_ps),
+                                "range_cp": [min(valores_cp), max(valores_cp)] if valores_cp else []
+                            }
+                            sucesso_na_liga = True
+                            break # Quebra o 'for tentativa in range(3)' pois deu certo
+                            
+                    except TimeoutException:
+                        print(f"   -> Site engasgou na liga {nome_liga} ({tentativa + 1}/3). Tentando recarregar...")
+                        time.sleep(2) # Pausa antes de tentar o reload
+                    except Exception as e:
+                        print(f"   -> Erro ao ler a tabela na liga {nome_liga} ({tentativa + 1}/3): {e}")
+                        time.sleep(2)
                 
-                try:
-                    # Espera curta (5s) para não travar muito tempo caso a tabela falhe
-                    WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
-                    )
-                    time.sleep(1.5) # Tempo de estabilização do DOM
-                    
-                    linhas = driver.find_elements(By.XPATH, "//table//tbody/tr")
-                    
-                    for linha in linhas:
-                        colunas = linha.find_elements(By.TAG_NAME, "td")
-                        
-                        if len(colunas) > 5:
-                            rank_texto = colunas[0].text.strip()
-                            if not rank_texto.isdigit():
-                                continue 
-                            
-                            ranks_validados += 1
-                            
-                            cp_texto = colunas[2].text.strip()
-                            if cp_texto.isdigit():
-                                valores_cp.append(int(cp_texto))
-                                
-                            valores_iv_ataque.add(colunas[3].text.strip())
-                            valores_iv_defesa.add(colunas[4].text.strip())
-                            valores_iv_ps.add(colunas[5].text.strip())
-                            
-                            if ranks_validados == 99:
-                                break
-                                
-                    # Popula o dicionário da liga atual
-                    if ranks_validados > 0:
-                        dados_finais[nome][nome_liga] = {
-                            "iv_ataque": organizar_ivs(valores_iv_ataque),
-                            "iv_defesa": organizar_ivs(valores_iv_defesa),
-                            "iv_ps": organizar_ivs(valores_iv_ps),
-                            "range_cp": [min(valores_cp), max(valores_cp)] if valores_cp else []
-                        }
-                    else:
-                        dados_finais[nome][nome_liga] = None # Caso não seja elegível pra liga
-                        
-                except TimeoutException:
-                    print(f"   -> Timeout ao carregar liga {nome_liga} para {nome}.")
-                    dados_finais[nome][nome_liga] = None
-                except Exception as e:
-                    print(f"   -> Erro inesperado na liga {nome_liga}: {e}")
+                # Se falhar nas 3 tentativas, marca como None para não travar o script inteiro
+                if not sucesso_na_liga:
+                    print(f"   ❌ Falha definitiva ao extrair a liga {nome_liga} para {nome}.")
                     dados_finais[nome][nome_liga] = None
             
             # Salva o progresso LOCALMENTE no JSON a cada Pokémon finalizado
@@ -162,7 +182,7 @@ def extrair_dados_lote():
                 print(f"📦 Salvando lote parcial de 10 Pokémon no repositório GitHub...")
                 os.system('git config --global user.name "GitHub Actions Bot"')
                 os.system('git config --global user.email "actions@github.com"')
-                os.system(f'git add {arquivo_json.as_posix()}')
+                os.system(f'git add "{arquivo_json.as_posix()}"')
                 os.system('git commit -m "🤖 Lote parcial salvo automaticamente (10 Pokemons)"')
                 os.system('git push')
                 
@@ -177,7 +197,7 @@ def extrair_dados_lote():
             print("📦 Fazendo push final do que restou na fila...")
             os.system('git config --global user.name "GitHub Actions Bot"')
             os.system('git config --global user.email "actions@github.com"')
-            os.system(f'git add {arquivo_json.as_posix()}')
+            os.system(f'git add "{arquivo_json.as_posix()}"')
             os.system('git commit -m "🤖 Push final da rodada de extração"')
             os.system('git push')
             
