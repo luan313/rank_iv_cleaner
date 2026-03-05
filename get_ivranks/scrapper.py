@@ -10,8 +10,10 @@ import json
 import os
 from pathlib import Path
 
+# Configuração de caminhos virtuais
 dir_path = Path(__file__).parent
 path_txt = dir_path.parent / "get_names" / "data" / "lista_pokemons_pvpivs.txt"
+arquivo_json = "dados_pvp_ivs.json" # Ficará salvo na raiz do projeto
 
 def organizar_ivs(conjunto_ivs):
     """Função auxiliar para converter o set em lista de inteiros ordenada."""
@@ -29,20 +31,16 @@ def iniciar_driver():
     return webdriver.Chrome(service=servico, options=opcoes)
 
 def extrair_dados_lote():
-    arquivo_json = "dados_pvp_ivs.json"
-    
     # Verifica se o arquivo de nomes existe
     if not os.path.exists(path_txt):
         print(f"⚠️ Erro: O arquivo '{path_txt}' não foi encontrado. Execute o get_names.py primeiro.")
         return
         
-    # Lê todos os nomes, ignorando linhas vazias
+    # Lê todos os nomes do TXT, ignorando linhas vazias
     with open(path_txt, "r", encoding="utf-8") as f:
-        nomes_pokemon = [linha.strip() for linha in f if linha.strip()]
+        nomes_pokemon_todos = [linha.strip() for linha in f if linha.strip()]
         
-    print(f"📋 Encontrados {len(nomes_pokemon)} Pokémon para processar.")
-    
-    # Carrega o JSON existente se houver, para não sobrescrever caso você pare e volte
+    # Carrega o JSON existente se houver, para não sobrescrever o progresso
     dados_finais = {}
     if os.path.exists(arquivo_json):
         with open(arquivo_json, "r", encoding="utf-8") as f:
@@ -51,7 +49,21 @@ def extrair_dados_lote():
             except json.JSONDecodeError:
                 dados_finais = {}
 
-    # Define as ligas e seus parâmetros de CP no site (10000 representa a Master League Level 50)
+    # CRIAMOS A LISTA DE PENDENTES ANTES DO LAÇO:
+    # Só adiciona o Pokémon se ele NÃO estiver no JSON ou se não tiver as 3 ligas completas
+    nomes_pendentes = [
+        nome for nome in nomes_pokemon_todos 
+        if not (nome in dados_finais and len(dados_finais.get(nome, {})) == 3)
+    ]
+    
+    print(f"📋 Total de Pokémon no TXT: {len(nomes_pokemon_todos)}")
+    print(f"🚀 Faltam processar: {len(nomes_pendentes)} Pokémon.")
+
+    if len(nomes_pendentes) == 0:
+        print("🎉 Todos os Pokémon já foram processados! O arquivo JSON está completo.")
+        return
+
+    # Define as ligas e seus parâmetros de CP no site
     ligas = {
         "great": 1500,
         "ultra": 2500,
@@ -60,26 +72,24 @@ def extrair_dados_lote():
     
     driver = iniciar_driver()
     
-    # --- AJUSTE 1: Configuração do limite de tempo ---
+    # --- AJUSTE DE TEMPO (5h30m) ---
     tempo_inicio = time.time()
     tempo_limite = 5.5 * 60 * 60 # 5 horas e meia em segundos
-    processados_agora = 0 # Contador para sabermos quando fizer o git push
+    processados_agora = 0 # Contador para sabermos quando fazer o git push
     
     try:
-        for index, nome in enumerate(nomes_pokemon, 1):
+        # AGORA ELE SÓ PERCORRE OS PENDENTES
+        for index, nome in enumerate(nomes_pendentes, 1):
             
-            # --- AJUSTE 1 (Continuação): Checa se estourou o limite de tempo ---
+            # Checa se estourou o limite de tempo
             tempo_decorrido = time.time() - tempo_inicio
             if tempo_decorrido > tempo_limite:
                 print("\n⏳ Tempo limite de segurança (5h30m) atingido. Encerrando para evitar corte brusco do GitHub...")
                 break # Sai do laço e vai direto pro 'finally'
-            
-            # Pula o Pokémon se ele já estiver completo no JSON
-            if nome in dados_finais and len(dados_finais[nome]) == 3:
-                print(f"[{index}/{len(nomes_pokemon)}] {nome} já processado. Pulando...")
-                continue
                 
-            print(f"\n[{index}/{len(nomes_pokemon)}] Processando: {nome}...")
+            print(f"\n[{index}/{len(nomes_pendentes)}] Processando: {nome}...")
+            
+            # Inicializa as chaves do Pokémon (sobrescreve se antes estava incompleto)
             dados_finais[nome] = {}
             
             for nome_liga, cp_liga in ligas.items():
@@ -93,11 +103,11 @@ def extrair_dados_lote():
                 ranks_validados = 0
                 
                 try:
-                    # Espera mais curta (5s) para não travar muito tempo caso a tabela falhe
+                    # Espera curta (5s) para não travar muito tempo caso a tabela falhe
                     WebDriverWait(driver, 5).until(
                         EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
                     )
-                    time.sleep(1.5) # Tempo rápido de estabilização do DOM
+                    time.sleep(1.5) # Tempo de estabilização do DOM
                     
                     linhas = driver.find_elements(By.XPATH, "//table//tbody/tr")
                     
@@ -122,7 +132,7 @@ def extrair_dados_lote():
                             if ranks_validados == 99:
                                 break
                                 
-                    # Populando o dicionário da liga atual
+                    # Popula o dicionário da liga atual
                     if ranks_validados > 0:
                         dados_finais[nome][nome_liga] = {
                             "iv_ataque": organizar_ivs(valores_iv_ataque),
@@ -131,7 +141,7 @@ def extrair_dados_lote():
                             "range_cp": [min(valores_cp), max(valores_cp)] if valores_cp else []
                         }
                     else:
-                        dados_finais[nome][nome_liga] = None # Caso o Pokémon não seja elegível pra liga
+                        dados_finais[nome][nome_liga] = None # Caso não seja elegível pra liga
                         
                 except TimeoutException:
                     print(f"   -> Timeout ao carregar liga {nome_liga} para {nome}.")
@@ -146,21 +156,32 @@ def extrair_dados_lote():
             
             processados_agora += 1
             
-            # --- AJUSTE 2: Faz o Commit e Push no GitHub a cada 10 Pokémon novos ---
+            # Faz o Commit e Push no GitHub a cada 10 Pokémon extraídos com sucesso
             if processados_agora % 10 == 0:
-                print(f"📦 Salvando lote de 10 Pokémon no repositório GitHub...")
+                print(f"📦 Salvando lote parcial de 10 Pokémon no repositório GitHub...")
                 os.system('git config --global user.name "GitHub Actions Bot"')
                 os.system('git config --global user.email "actions@github.com"')
                 os.system(f'git add {arquivo_json}')
-                os.system('git commit -m "🤖 Lote parcial salvo automaticamente"')
+                os.system('git commit -m "🤖 Lote parcial salvo automaticamente (10 Pokemons)"')
                 os.system('git push')
                 
             # Pequena pausa para não sobrecarregar o servidor do pvpivs
             time.sleep(1) 
             
     finally:
-        print("\n✅ Extração finalizada ou interrompida. Fechando o navegador...")
+        print("\n✅ Extração finalizada ou interrompida de forma segura. Fechando o navegador...")
+        
+        # Força um último push antes de desligar a máquina (caso tenha sobrado algo fora do múltiplo de 10)
+        if processados_agora > 0 and processados_agora % 10 != 0:
+            print("📦 Fazendo push final do que restou na fila...")
+            os.system('git config --global user.name "GitHub Actions Bot"')
+            os.system('git config --global user.email "actions@github.com"')
+            os.system(f'git add {arquivo_json}')
+            os.system('git commit -m "🤖 Push final da rodada de extração"')
+            os.system('git push')
+            
         driver.quit()
 
 # Inicia a execução
-extrair_dados_lote()
+if __name__ == "__main__":
+    extrair_dados_lote()
