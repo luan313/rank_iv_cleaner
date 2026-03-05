@@ -1,0 +1,46 @@
+# ==============================
+# Ambientes Virtuais (Virtualenvs)
+# ==============================
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# ==============================
+# Python: Arquivos Compilados e Cache
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# ==============================
+# Logs e Arquivos Temporários do Selenium
+# ==============================
+*.log
+geckodriver.log
+chromedriver.log
+ghostdriver.log
+
+# ==============================
+# Configurações de IDEs e Editores
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==============================
+# Arquivos de Sistema Operacional
+# ==============================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ==============================
+# Pastas de Distribuição Python (Opcional, mas recomendado)
+# ==============================
+build/
+dist/
+*.egg-info/
