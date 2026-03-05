@@ -8,11 +8,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import json
 import os
-
 from pathlib import Path
 
 dir_path = Path(__file__).parent
-
 path_txt = dir_path.parent / "get_names" / "data" / "lista_pokemons_pvpivs.txt"
 
 def organizar_ivs(conjunto_ivs):
@@ -62,9 +60,21 @@ def extrair_dados_lote():
     
     driver = iniciar_driver()
     
+    # --- AJUSTE 1: Configuração do limite de tempo ---
+    tempo_inicio = time.time()
+    tempo_limite = 5.5 * 60 * 60 # 5 horas e meia em segundos
+    processados_agora = 0 # Contador para sabermos quando fizer o git push
+    
     try:
         for index, nome in enumerate(nomes_pokemon, 1):
-            # Pula o Pokémon se ele já estiver completo no JSON (útil para continuar de onde parou)
+            
+            # --- AJUSTE 1 (Continuação): Checa se estourou o limite de tempo ---
+            tempo_decorrido = time.time() - tempo_inicio
+            if tempo_decorrido > tempo_limite:
+                print("\n⏳ Tempo limite de segurança (5h30m) atingido. Encerrando para evitar corte brusco do GitHub...")
+                break # Sai do laço e vai direto pro 'finally'
+            
+            # Pula o Pokémon se ele já estiver completo no JSON
             if nome in dados_finais and len(dados_finais[nome]) == 3:
                 print(f"[{index}/{len(nomes_pokemon)}] {nome} já processado. Pulando...")
                 continue
@@ -130,9 +140,20 @@ def extrair_dados_lote():
                     print(f"   -> Erro inesperado na liga {nome_liga}: {e}")
                     dados_finais[nome][nome_liga] = None
             
-            # Salva o progresso no JSON a cada Pokémon finalizado
+            # Salva o progresso LOCALMENTE no JSON a cada Pokémon finalizado
             with open(arquivo_json, "w", encoding="utf-8") as f:
                 json.dump(dados_finais, f, indent=4, ensure_ascii=False)
+            
+            processados_agora += 1
+            
+            # --- AJUSTE 2: Faz o Commit e Push no GitHub a cada 10 Pokémon novos ---
+            if processados_agora % 10 == 0:
+                print(f"📦 Salvando lote de 10 Pokémon no repositório GitHub...")
+                os.system('git config --global user.name "GitHub Actions Bot"')
+                os.system('git config --global user.email "actions@github.com"')
+                os.system(f'git add {arquivo_json}')
+                os.system('git commit -m "🤖 Lote parcial salvo automaticamente"')
+                os.system('git push')
                 
             # Pequena pausa para não sobrecarregar o servidor do pvpivs
             time.sleep(1) 
