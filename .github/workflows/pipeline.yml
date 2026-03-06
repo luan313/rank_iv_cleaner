@@ -42,7 +42,7 @@ jobs:
 
       - name: 3. Extrair IVs em Lote
         run: |
-          python get_ivranks/scrapper_lote.py
+          python get_ivranks/scrapper.py
 
       # 5. Salva (Commit & Push) o JSON novo gerado de volta no seu repositório
       - name: Salvar JSON no GitHub
