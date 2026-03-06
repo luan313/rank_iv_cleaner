@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Configuração dos caminhos virtuais
 dir_path = Path(__file__).parent
-path_txt = dir_path.parent / "get_names" / "data" / "lista_pokemons_pvpivs.txt"
+path_txt = dir_path.parent / "get_names" / "data" / "lista_metade_1.txt"
 
 def enriquecer_lista():
     if not path_txt.exists():
