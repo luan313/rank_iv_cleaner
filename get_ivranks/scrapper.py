@@ -36,7 +36,7 @@ def iniciar_driver():
     
     servico = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=servico, options=opcoes)
-    driver.set_page_load_timeout(30) 
+    driver.set_page_load_timeout(60) 
     
     return driver
 
