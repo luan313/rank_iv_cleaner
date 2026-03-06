@@ -41,9 +41,8 @@ def enriquecer_lista():
     print("Cruzando dados dos Pokémon...")
     
     # --- DICIONÁRIOS DE CORREÇÃO ---
-    # Notou como ele ficou menor? As formas de Alola agora são tratadas pela regra dinâmica!
+    # Limpamos os speculatives daqui!
     mapa_nomes = {
-        "archaludon_speculative": "archaludon",
         "basculin_hisuian": "basculin",
         "brute_bonnet": "brutebonnet",
         "burmy": "burmy_plant",
@@ -51,11 +50,47 @@ def enriquecer_lista():
         "eiscue_ice_face": "eiscue_ice",
         "eiscue_noice_face": "eiscue_noice",
         "enamorus": "enamorus_incarnate",
-        "fezandipiti_speculative": "fezandipiti",
         "flutter_mane": "fluttermane",
         "gimmighoul_chest": "gimmighoul",
         "gimmighoul_roaming": "gimmighoul",
-        "goodra_hisuian": "goodra"
+        "sliggoo_hisuian" : "sliggoo",
+        "goodra_hisuian": "goodra",
+        "great_tusk": "greattusk",
+        "ice_rider_calyrex": "calyrex",
+        "shadow_rider_calyrex": "calyrex",
+        "iron_bundle": "ironbundle",
+        "iron_hands": "ironhands",
+        "iron_jugulis": "ironjugulis",
+        "iron_moth": "ironmoth",
+        "iron_thorns": "ironthorns",
+        "iron_treads": "irontreads",
+        "iron_valiant": "ironvaliant",
+        "keldeo": "keldeo_ordinary",
+        "absol_mega_z": "absol_mega",
+        "garchomp_mega_z": "garchomp_mega",
+        "lucario_mega_z": "lucario_mega",
+        "meganium_mega": "meganium",
+        "roaring_moon": "roaringmoon",
+        "morpeko": "morpeko_full_belly",
+        "oinkologne_male": "oinkologne",
+        "oricorio": "oricorio_pom_pom",
+        "primal_groudon": "groudon_primal",
+        "primal_kyogre": "kyogre_primal",
+        "sandy_shocks": "sandyshocks",
+        "scream_tail": "screamtail",
+        "slither_wing": "slitherwing",
+        "tatsugiri": "tatsugiri_curly",
+        "tauros_paldean": "tauros",
+        "terapagos_normal": "terapagos",
+        "terapagos_stellar": "terapagos",
+        "terapagos_terastal": "terapagos",
+        "ultra_necrozma": "necrozma_ultra",
+        "urshifu": "urshifu_rapid_strike",
+        "zacian_hero_of_many_battles": "zacian_hero",
+        "zamazenta_hero_of_many_battles": "zamazenta_hero",
+        "zygarde_fifty_percent": "zygarde",
+        "zygarde_ten_percent": "zygarde_10"
+
     }
     
     mapa_manual = {}
@@ -74,12 +109,14 @@ def enriquecer_lista():
         # Regra 2: Joga o 'mega_' para depois do nome base
         if chave_busca.startswith("mega_"):
             partes = chave_busca.split("_")
-            # Se for só Mega (ex: mega_venusaur -> venusaur_mega)
             if len(partes) == 2: 
                 chave_busca = f"{partes[1]}_mega"
-            # Se for Mega com variação (ex: mega_charizard_x -> charizard_mega_x)
             elif len(partes) > 2: 
                 chave_busca = f"{partes[1]}_mega_{'_'.join(partes[2:])}"
+
+        # Regra 3: Remove "_speculative" APENAS para a busca no Gamemaster
+        if "_speculative" in chave_busca:
+            chave_busca = chave_busca.replace("_speculative", "")
 
         # --------------------------------------
         
@@ -104,7 +141,7 @@ def enriquecer_lista():
             nao_encontrados += 1
             print(f"  -> Aviso: Dados não encontrados no PvPoke para: {nome}")
             
-        # Adiciona na lista atualizada. Note que o 'nome' original é mantido no TXT!
+        # Adiciona na lista atualizada. O 'nome' original intacto vai pro TXT!
         linhas_atualizadas.append(f"{nome},{dex},{family}")
 
     # 4. Sobrescreve o TXT com a nova formatação
