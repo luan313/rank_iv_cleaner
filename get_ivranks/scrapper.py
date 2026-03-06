@@ -48,11 +48,24 @@ def extrair_dados_lote():
         print(f"⚠️ Erro: O arquivo '{path_txt}' não foi encontrado.")
         return
         
+    nomes_pokemon_todos = []
+    metadados_pokemon = {} # Vai guardar o Dex e Family temporariamente
+
     # Lê todos os nomes do TXT, ignorando linhas vazias
     with open(path_txt, "r", encoding="utf-8") as f:
-        nomes_pokemon_todos = [linha.strip() for linha in f if linha.strip()]
+        for linha in f:
+            if not linha.strip(): continue
+            
+            partes = linha.strip().split(",")
+            nome = partes[0]
+            # Validação caso a pessoa rode o scraper sem ter rodado o script do gamemaster
+            dex = int(partes[1]) if len(partes) > 1 and partes[1].isdigit() else 0
+            family = partes[2] if len(partes) > 2 else "none"
+            
+            nomes_pokemon_todos.append(nome)
+            metadados_pokemon[nome] = {"dex": dex, "family": family}
         
-    # Carrega o JSON existente se houver, para não sobrescrever o progresso
+    # Carrega o JSON existente se houver
     dados_finais = {}
     if os.path.exists(arquivo_json):
         with open(arquivo_json, "r", encoding="utf-8") as f:
@@ -61,11 +74,17 @@ def extrair_dados_lote():
             except json.JSONDecodeError:
                 dados_finais = {}
 
-    # CRIAMOS A LISTA DE PENDENTES ANTES DO LAÇO:
-    # Só adiciona o Pokémon se ele NÃO estiver no JSON ou se não tiver as 3 ligas completas
+    # ATENÇÃO À MUDANÇA AQUI:
+    # Como agora o dicionário tem 5 chaves (dex, family, great, ultra, master), 
+    # não podemos mais checar se o 'len == 3'. Vamos checar se as 3 ligas existem lá dentro.
     nomes_pendentes = [
         nome for nome in nomes_pokemon_todos 
-        if not (nome in dados_finais and len(dados_finais.get(nome, {})) == 3)
+        if not (
+            nome in dados_finais and 
+            dados_finais[nome].get("great") is not None and 
+            dados_finais[nome].get("ultra") is not None and 
+            dados_finais[nome].get("master") is not None
+        )
     ]
     
     print(f"📋 Total de Pokémon no TXT: {len(nomes_pokemon_todos)}")
@@ -102,7 +121,10 @@ def extrair_dados_lote():
             print(f"\n[{index}/{len(nomes_pendentes)}] Processando: {nome}...")
             
             # Inicializa as chaves do Pokémon (sobrescreve se antes estava incompleto)
-            dados_finais[nome] = {}
+            dados_finais[nome] = {
+                "dex": metadados_pokemon[nome]["dex"],
+                "family": metadados_pokemon[nome]["family"]
+            }
             
             for nome_liga, cp_liga in ligas.items():
                 url = f"https://pvpivs.com/?mon={nome}&r=99&cp={cp_liga}"

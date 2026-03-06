@@ -32,10 +32,17 @@ jobs:
           pip install requests selenium webdriver-manager
 
       # 4. Executa os seus scripts (ajuste o caminho se estiverem dentro da pasta 'core')
-      - name: Rodar Scripts de Extração
+      - name: 1. Baixar lista de nomes
         run: |
           python get_names/get_names.py
-          python get_ivranks/scrapper.py
+
+      - name: 2. Enriquecer lista com Pokédex e Família (Novo Script)
+        run: |
+          python enrich_txt/enrich_txt.py
+
+      - name: 3. Extrair IVs em Lote
+        run: |
+          python get_ivranks/scrapper_lote.py
 
       # 5. Salva (Commit & Push) o JSON novo gerado de volta no seu repositório
       - name: Salvar JSON no GitHub
