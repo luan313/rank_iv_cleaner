@@ -119,11 +119,14 @@ def extrair_dados_lote():
                     try:
                         driver.get(url)
                         
-                        # Espera curta (5s) para garantir que a tabela começou a ser renderizada
+                        # Espera a tabela aparecer no HTML (mesmo que ainda esteja vazia)
                         WebDriverWait(driver, 5).until(
                             EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
                         )
-                        time.sleep(1.5) # Tempo de estabilização do DOM
+                        
+                        # 🛠️ AJUSTE 1: Aumentado para 4.5 segundos! 
+                        # Dá tempo para o CPU fraco do GitHub terminar os cálculos do JavaScript
+                        time.sleep(4.5) 
                         
                         linhas = driver.find_elements(By.XPATH, "//table//tbody/tr")
                         
@@ -157,14 +160,19 @@ def extrair_dados_lote():
                                 "range_cp": [min(valores_cp), max(valores_cp)] if valores_cp else []
                             }
                             sucesso_na_liga = True
-                            break # Quebra o 'for tentativa in range(3)' pois deu certo
+                            break # Quebra o 'for tentativa' pois deu certo
+                        else:
+                            # 🛠️ AJUSTE 2: Forçamos um erro se a tabela for lida vazia!
+                            # Isso faz com que ele caia no 'except' abaixo e tente de novo.
+                            raise Exception("A tabela carregou, mas o JavaScript ainda não preencheu os números.")
                             
                     except TimeoutException:
                         print(f"   -> Site engasgou na liga {nome_liga} ({tentativa + 1}/3). Tentando recarregar...")
-                        time.sleep(2) # Pausa antes de tentar o reload
+                        time.sleep(2) 
                     except Exception as e:
-                        print(f"   -> Erro ao ler a tabela na liga {nome_liga} ({tentativa + 1}/3): {e}")
-                        time.sleep(2)
+                        # 🛠️ Agora o nosso erro forçado cai aqui e o script TENTA DE NOVO!
+                        print(f"   -> CPU lento na liga {nome_liga} ({tentativa + 1}/3): {e}")
+                        time.sleep(3) # Dá um respiro antes de dar o refresh
                 
                 # Se falhar nas 3 tentativas, marca como None para não travar o script inteiro
                 if not sucesso_na_liga:
